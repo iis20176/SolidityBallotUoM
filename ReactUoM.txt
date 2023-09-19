@@ -1,0 +1,772 @@
+Η κλάση App αποτελεί απόγονο της Component  η οποία είναι θεμελιώδης στην react.
+Σε κάθε αλλαγή κάποιου στοιχείου εντός της App,
+(π.χ. πληκτρολογώντας εντός ενός textBox, ή αν τροποποιηθεί κάποια μεταβλητή state)
+όλη η ιστοσελίδα (HTML) γίνεται refresh καλώντας αυτόματα τη render()...
+...ΠΡΟΣΟΧΗ! ΔΕΝ γίνεται reload... ΜΟΝΟ refresh
+
+Η componentDidMount() καλείται ΜΟΝΟ την πρώτη φορά
+που φορτώνει η ιστοσελίδα (είναι σαν την onLoad())
+
+-Η ιστοσελίδα να εμφανίζει τη διεύθυνση του
+συνδεδεμένου πορτοφολιού και τη διεύθυνση του διαχειριστή.
+
+-Να εμφανίζει το πλήθος των ψηφοφόρων και των
+υποψηφίων καθώς αυτοί δηλώνονται σε όλους όσους έχουν ανοιχτή τη σελίδα.
+
+Αρχικά εμφανίζει τον διαχειριστή, το πλήθος τον εγγεγραμένων υποψηφίων 
+και την τιμή που έχει μαζευτεί στο συμβόλαιο.
+
+Όποτε δηλώσει υποψηφιότητα ενημερώνει τις candidates & balance και το εμφανίζει. (event)
+(Με το κουμπί "declareCandidacy")
+
+Όποτε δηλώσει εγγραφή ενημερώνει το voters και το εμφανίζει. (event)
+(Με το κουμπί "register")
+
+Όποτε ολοκληρωθεί η ψηφοφορία ενημερώνει τις candidates & balance και το εμφανίζει. (event)
+Επίσης δημιουργεί μια νέα state μεταβλητή lastWinner. (Με το κουμπί "declareWinner")
+
+-Η ιστοσελίδα να εμφανίζει το τρέχον στάδιο. 
+----
+
+Όταν πατηθεί το κουμπί "declareCandidacy" εμφανίζει το μήνυμα 'Waiting for success...'
+και προσθέτει έναν υποψήφιο και ενημερώνει τον αριθμό των υποψηφίων και τον τα ether που μαζεύτηκαν.
+
+Όταν πατηθεί το κουμπί "declareWinner" εμφανίζει το μήνυμα 'Waiting for success...'
+και εμφανίζει τον νικητή.
+
+-Η ιστοσελίδα να δίνει (π.χ. με κάποιο κουμπί) τη δυνατότητα, 
+ο επισκέπτης να εμφανίσει τα αποτελέσματα όλων των προηγούμενων
+εκλογικών αναμετρήσεων.
+
+Όταν πατηθεί το κουμπί "getPreviousResults" εμφανίζει τους προηγούμενους νικητές.
+ 
+Κάθε φορά η σελίδα γίνεται refresh με το render().
+
+Επίσης χρησιμοποιούνται style για το button.
+
+Σχόλια:
+Δεν κατάφερα να υλοποιήσω την ενημέρωση των σταδίων.
+Στο πρόγραμμα solidity υπάρχουν περισσότερες λειτουργίες τις οποίες δεν τις πρόσθεσα εδώ
+
+-----------------------------------------------------------------------------------------
+App.js
+
+import React, { Component } from 'react';
+import 'bootstrap/dist/css/bootstrap.css';
+import web3 from './web3';
+import lottery from './lottery';
+
+// Η κλάση App αποτελεί απόγονο της Component 
+// η οποία είναι θεμελιώδης στην react.
+// Σε κάθε αλλαγή κάποιου στοιχείου εντός της App,
+// π.χ. πληκτρολογώντας εντός ενός textBox,
+// ή αν τροποποιηθεί κάποια μεταβλητή state,
+// όλη η ιστοσελίδα (HTML) γίνεται refresh
+// καλώντας αυτόματα τη render()...
+// ...ΠΡΟΣΟΧΗ! ΔΕΝ γίνεται reload... ΜΟΝΟ refresh
+
+class App extends Component {
+  state = {
+    owner: '', // O διαχειριστής
+    candidates: [], // Λίστα με τους υποψηφίους
+    voters: [], // Λίστα με τους ψηφοφόρους
+    previousResults: [], // Λίστα με τα προηγούμενα αποτελέσματα
+    balance: '',
+    value: '',
+    message: ''
+  };
+
+  // Η componentDidMount() καλείται ΜΟΝΟ την πρώτη φορά
+  // που φορτώνει η ιστοσελίδα (είναι σαν την onLoad())
+  async componentDidMount() {
+
+    // Κάθε φορά που επιλέγεται άλλο πορτοφόλι στο metamask...
+    window.ethereum.on('accountsChanged', (accounts) => {
+      // ... να γίνεται reload η σελίδα, δηλ. να καλείται η componentDidMount()
+      window.location.reload();
+    });
+
+    // Ορισμός των state μεταβλητών
+    const owner = await lottery.methods.owner().call();
+    const candidates = await lottery.methods.declareCandidacy().call();
+    const voters = await lottery.methods.register().call();
+    const balance = await web3.eth.getBalance(lottery.options.address);
+    const currentAccount = (await web3.eth.getAccounts())[0]; 
+    this.setState({ owner, candidates, voters, balance, currentAccount });
+
+    // Όποτε δηλώσει υποψηφιότητα ενημερώνει το candidates & balance
+    lottery.events.candidatesFee({}, async (error, event) => {
+        if (error) {
+            console.error(error);
+        } else {
+            const candidates = await lottery.methods.declareCandidacy().call();
+            const balance = await web3.eth.getBalance(lottery.options.address);
+            this.setState({ candidates, balance });
+        }
+    });
+
+     // Όποτε δηλώσει εγγραφή ενημερώνει το voters
+     lottery.events.voterFee({}, async (error, event) => {
+      if (error) {
+          console.error(error);
+      } else {
+          const voters = await lottery.methods.register().call();
+          const balance = await web3.eth.getBalance(lottery.options.address);
+          this.setState({ voters, balance });
+      }
+  });
+    
+
+    // Όποτε ολοκληρωθεί η ψηφοφορία να ενημερώσεις τις candidates & balance
+    // και να δημιουργήσεις τη νέα state μεταβλητή lastWinner
+    lottery.events.Winner({}, async (error, event) => {
+        if (error) { console.error(error);
+        } else {
+            const candidates = await lottery.methods.getWinner().call();
+            const balance = await web3.eth.getBalance(lottery.options.address);
+            const lastWinner = event.returnValues.winner;
+            this.setState({ lastWinner, candidates, balance });
+        }
+    });
+
+    // Αν δεν υπήρχε παραπάνω η window.ethereum.on('accountsChanged', (accounts)
+    // this.refreshAccount();
+  }
+
+// Αν δεν υπήρχε παραπάνω η window.ethereum.on('accountsChanged', (accounts)
+//   refreshAccount = async () => {
+//     const accounts = await web3.eth.getAccounts();
+
+//     if (this.state.currentAccount !== accounts[0]) {
+//       this.setState({ currentAccount: accounts[0] });
+//     }
+
+//     setTimeout(() => {
+//       this.refreshAccount();
+//     }, 1000);
+//   };
+
+  // Όταν πατηθεί το κουμπί "declareCandidacy"
+  onSubmit = async event => {
+    event.preventDefault();
+
+    this.setState({ message: 'Waiting for success...' });
+
+    await lottery.methods.declareCandidacy().send({ // Κλήση της "declareCandidacy()" του συμβολαίου
+      from: this.state.currentAccount,
+      value: web3.utils.toWei(this.state.value, 'ether')
+    });
+
+    this.setState({ message: 'You have been entered!' });
+  };
+  // Όταν πατηθεί το κουμπί "register"
+  onSubmit = async event => {
+    event.preventDefault();
+
+    this.setState({ message: 'Waiting for success...' });
+
+    await lottery.methods.register().send({ // Κλήση της "register()" του συμβολαίου
+      from: this.state.currentAccount,
+      value: web3.utils.toWei(this.state.value, 'ether')
+    });
+
+    this.setState({ message: 'You have been entered!' });
+  };
+
+  // Όταν πατηθεί το κουμπί "declareWinner"
+  onClick = async () => {
+    this.setState({ message: 'Waiting for success...' });
+
+    await lottery.methods.declareWinner().send({ // Κλήση της "pickWinner()" του συμβολαίου
+      from: this.state.currentAccount
+    });
+
+    this.setState({ message: 'A winner has been picked!' });
+  };
+
+  // Λειτουργία για την ανάκτηση των προηγούμενων αποτελεσμάτων από το συμβόλαιο
+  fetchPreviousResults = async () => {
+     const previousResults = await lottery.methods.getPreviousResults().call();
+     this.setState({ previousResults });
+  };
+
+  // Κάθε φορά που η σελίδα γίνεται refresh
+   render() { 
+    return (
+      <div>
+      <h2>Ballot Contract</h2>
+      {/* Ό,τι βρίσκεται εντός των άγκιστρων είναι κώδικας JavaScript */}
+      {/* Η σελίδα HLML λειτουργεί αυτόνομα, σαν να εκτελείται σε κάποιον server */}
+      <p>
+        This contract is managed by {this.state.owner}. There are currently{' '}
+        {this.state.candidates.length} people entered, competing to win{' '}
+        {web3.utils.fromWei(this.state.balance, 'ether')} ether!
+      </p>
+
+      <hr /> {/*  -------------------- Οριζόντια γραμμή -------------------- */}
+
+      {/* Η φόρμα "Want to try your luck?" */}
+      {/* Θα μπορούσε αντί να χρησιμοποιηθεί φόρμα, */}
+      {/* να χρησιμοποιηθεί button... */}
+      {/* και αντί .onSubmit να χρησιμοποιούνταν .onClick */}
+      <form onSubmit={this.onSubmit}>
+        <h4> Connected wallet address: {this.state.currentAccount}</h4>
+        <div>
+          <label>Amount of ether to enter</label>
+          <input
+            value={this.state.value}
+            onChange={event => this.setState({ value: event.target.value })}
+          />
+        </div>
+        <button>Enter</button>
+      </form>
+
+      <hr /> {/*  -------------------- Οριζόντια γραμμή -------------------- */}
+
+      <h4>Ready to pick a winner?</h4>
+      <button onClick={this.onClick}>Pick a winner!</button>
+
+      <hr /> {/*  -------------------- Οριζόντια γραμμή -------------------- */}
+
+      <h1>{this.state.message}</h1>
+      {this.state.lastWinner &&
+       <h3>Last Winner Address: {this.state.lastWinner}</h3>
+      }
+
+      <hr /> {/*  -------------------- Οριζόντια γραμμή -------------------- */}
+
+      <h3>View Previous Election Results</h3>
+      <button onClick={this.fetchPreviousResults}>View Previous Election Results</button>
+      <ul>
+          {this.state.previousResults.map((result, index) => (
+             <li key={index}>Election #{index + 1}: {result}</li>
+       ))}
+      </ul>
+    </div>
+    
+    );
+  }  
+}
+ 
+export default App;
+
+//τα παρακάτω χρησιμοποιούνται για το styling
+const button = {
+  color: "white",
+  backgroundColor: "DodgerBlue",
+  padding: "10px",
+  fontFamily: "Arial",
+  borderRadius: 10,
+  };
+  const placeholder = {
+  borderRadius: 10
+  }
+
+-----------------------------------------------------------------------------------------
+
+lottery.js
+
+import web3 from './web3';
+
+const address = '0xb43Ce49a9B3fCAaba124a9E6Cda97Bb64ea1B935';
+
+const abi = [
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "winner",
+				"type": "address"
+			}
+		],
+		"name": "Winner",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "candidateFee",
+				"type": "address"
+			}
+		],
+		"name": "candidateFee",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "voter",
+				"type": "address"
+			}
+		],
+		"name": "voterFee",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "candidateAddresses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "candidates",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "addr",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "measure",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_newManager",
+				"type": "address"
+			}
+		],
+		"name": "changeOwner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "currentElection",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "currentStage",
+		"outputs": [
+			{
+				"internalType": "enum VoterRegistry.Stage",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "declareCandidacy",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_winner",
+				"type": "address"
+			}
+		],
+		"name": "declareWinner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "finishVoting",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getBalance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getPreviousResults",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getWinner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "contract Kill",
+				"name": "_kill",
+				"type": "address"
+			}
+		],
+		"name": "kill",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address payable",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "register",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "registeredCandidates",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "registeredVoters",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "registrationFee",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "restart",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "startVoting",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalCandidates",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalFunds",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalVote",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalVoters",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "candidate",
+				"type": "address"
+			}
+		],
+		"name": "vote",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "voted",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "voterAddresses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "votingFinished",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "votingStarted",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "winner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "winners",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]
+	
+export default new web3.eth.Contract(abi, address);
+
+---------------------------------------------------------------------------------------
+
+web3.js
+
+import Web3 from 'web3';
+
+const uom = new Web3(window.ethereum);
+
+export default uom;
+
+---------------------------------------------------------------------------------------
+
+config-overrides.js
+
+const webpack = require('webpack');
+
+module.exports = function override(config) {
+    const fallback = config.resolve.fallback || {};
+    Object.assign(fallback, {
+        "crypto": require.resolve("crypto-browserify"),
+        "stream": require.resolve("stream-browserify"),
+        "assert": require.resolve("assert"),
+        "http": require.resolve("stream-http"),
+        "https": require.resolve("https-browserify"),
+        "os": require.resolve("os-browserify"),
+        "url": require.resolve("url")
+    })
+    config.resolve.fallback = fallback;
+    config.plugins = (config.plugins || []).concat([
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
+            Buffer: ['buffer', 'Buffer']
+        })
+    ])
+    return config;
+}
+
