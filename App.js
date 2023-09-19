@@ -14,7 +14,7 @@ import lottery from './lottery';
 
 class App extends Component {
   state = {
-    owner: '', // O διαχειριστής
+    owner: '0x4013cE7a1c4103B86739253f7Cca6e066715F0C4', // O διαχειριστής
     candidates: [], // Λίστα με τους υποψηφίους
     voters: [], // Λίστα με τους ψηφοφόρους
     previousResults: [], // Λίστα με τα προηγούμενα αποτελέσματα
@@ -107,7 +107,7 @@ class App extends Component {
     this.setState({ message: 'You have been entered!' });
   };
   // Όταν πατηθεί το κουμπί "register"
-  onSubmit = async event => {
+  onSubmitR = async event => {
     event.preventDefault();
 
     this.setState({ message: 'Waiting for success...' });
@@ -156,17 +156,36 @@ class App extends Component {
       {/* Θα μπορούσε αντί να χρησιμοποιηθεί φόρμα, */}
       {/* να χρησιμοποιηθεί button... */}
       {/* και αντί .onSubmit να χρησιμοποιούνταν .onClick */}
-      <form onSubmit={this.onSubmit}>
+      <form onSubmitR={this.onSubmitR}>
         <h4> Connected wallet address: {this.state.currentAccount}</h4>
+
         <div>
+          <label>Register</label>
+          <input voters={this.state.voters} 
+          onChange={event => this.setState({ voters: event.target.voters })}
+          />
+        <br></br>
+        <br></br>
+        <button>Register</button>
+        </div>
+        <br></br>
+        </form>
+        <from onSubmit={this.onSubmit}>
+        <div>
+          <label>Candidates</label>
+          <input candidates={this.state.candidates} 
+          onChange={event => this.setState({ candidates: event.target.candidates })}
+          />
+          <br></br>
           <label>Amount of ether to enter</label>
           <input
             value={this.state.value}
             onChange={event => this.setState({ value: event.target.value })}
           />
         </div>
+        <br></br>
         <button>Enter</button>
-      </form>
+      </from>
 
       <hr /> {/*  -------------------- Οριζόντια γραμμή -------------------- */}
 
@@ -208,4 +227,3 @@ const button = {
   const placeholder = {
   borderRadius: 10
   }
-
